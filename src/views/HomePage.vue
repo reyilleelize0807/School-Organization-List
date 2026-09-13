@@ -29,12 +29,14 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref } from 'vue';
+import { computed, onMounted, ref } from 'vue';
 import { useRouter } from 'vue-router';
+import { onValue, ref as databaseRef, remove, set } from 'firebase/database';
 import { IonButton, IonContent, IonIcon, IonPage } from '@ionic/vue';
 import MemberFormModal from '../components/MemberFormModal.vue';
 import MemberTable from '../components/MemberTable.vue';
 import type { Member } from '../types/member';
+import { database } from '../firebase';
 import { addOutline, chevronDownOutline, downloadOutline, lockClosedOutline, logOutOutline, optionsOutline, peopleOutline, ribbonOutline, schoolOutline, searchOutline } from 'ionicons/icons';
 
 const router = useRouter();
@@ -42,13 +44,7 @@ const positions = ['President', 'Vice President', 'Secretary', 'Treasurer', 'Mem
 const yearLevels = ['1st year', '2nd year', '3rd year', '4th year', 'Graduate'];
 const organizations = ['Supreme Secondary Learner Government', 'Science Club', 'Red Cross Youth', 'Youth for Environment in Schools'];
 const terms = ['First semester', 'Second semester'];
-const members = ref<Member[]>([
-  { id: '2023-0148', name: 'Maya Dela Cruz', initials: 'MD', course: 'BS Information Technology', organization: 'Supreme Secondary Learner Government', year: '3rd year', position: 'President', email: 'maya.delacruz@university.edu', phone: '+63 917 482 0193', color: 'lavender' },
-  { id: '2024-0291', name: 'Jared Lim', initials: 'JL', course: 'BS Business Administration', organization: 'Science Club', year: '2nd year', position: 'Vice President', email: 'jared.lim@university.edu', phone: '+63 905 118 4820', color: 'peach' },
-  { id: '2022-0067', name: 'Nina Villanueva', initials: 'NV', course: 'BA Communication', organization: 'Red Cross Youth', year: '4th year', position: 'Secretary', email: 'nina.v@university.edu', phone: '+63 917 730 1961', color: 'mint' },
-  { id: '2025-0314', name: 'Paolo Reyes', initials: 'PR', course: 'BS Computer Science', organization: 'Youth for Environment in Schools', year: '1st year', position: 'Treasurer', email: 'paolo.reyes@university.edu', phone: '+63 998 344 6205', color: 'sky' },
-  { id: '2024-0175', name: 'Sofia Tan', initials: 'ST', course: 'BS Psychology', organization: 'Science Club', year: '2nd year', position: 'Member', email: 'sofia.tan@university.edu', phone: '+63 926 501 3378', color: 'yellow' },
-]);
+const members = ref<Member[]>([]);
 const searchQuery = ref('');
 const organizationFilter = ref('All organizations');
 const isAddModalOpen = ref(false);
@@ -65,6 +61,8 @@ const organizationCount = computed(() => new Set(members.value.map((member) => m
 const activeFilterCount = computed(() => organizationFilter.value === 'All organizations' ? 0 : 1);
 const displayedMembers = computed(() => { const source = selectedStat.value === 'officers' ? members.value.filter((member) => member.position !== 'Member') : members.value; return source.filter((member) => filteredMembers.value.includes(member) && (!selectedOrganization.value || member.organization === selectedOrganization.value)); });
 const directoryTitle = computed(() => selectedStat.value === 'officers' ? 'Officers' : selectedStat.value === 'programs' && selectedOrganization.value ? selectedOrganization.value : 'Total members');
+const membersReference = databaseRef(database, 'Members');
+onMounted(() => { onValue(membersReference, (snapshot) => { const records = snapshot.val() as Record<string, Omit<Member, 'initials' | 'color'> & Partial<Pick<Member, 'initials' | 'color'>>> | null; members.value = records ? Object.entries(records).map(([key, record]) => ({ ...record, id: record.id || key, initials: record.initials || record.name.split(' ').map((part) => part[0]).join('').slice(0, 2).toUpperCase(), color: record.color || 'sky' })) : []; }); });
 function openAddMember() { editingId.value = null; isAddModalOpen.value = true; }
 function logout() { localStorage.removeItem('baco-member-list-auth'); router.push('/login'); }
 function openEditMember(member: Member) { editingId.value = member.id; isAddModalOpen.value = true; }
@@ -73,8 +71,8 @@ function resetFilters() { searchQuery.value = ''; organizationFilter.value = 'Al
 function organizationMemberCount(organization: string) { return members.value.filter((member) => member.organization === organization).length; }
 function selectOrganization(organization: string) { selectedOrganization.value = selectedOrganization.value === organization ? null : organization; }
 function clearOrganization() { selectedOrganization.value = null; }
-function saveMember(member: Omit<Member, 'initials' | 'color'>) { const initials = member.name.split(' ').map((part) => part[0]).join('').slice(0, 2).toUpperCase(); if (editingId.value) { const index = members.value.findIndex((item) => item.id === editingId.value); if (index !== -1) members.value[index] = { ...members.value[index], ...member, initials }; } else { members.value.unshift({ ...member, initials, color: 'sky' }); } closeMemberModal(); }
-function deleteMember(member: Member) { if (window.confirm(`Delete ${member.name} from the member list?`)) members.value = members.value.filter((item) => item.id !== member.id); }
+async function saveMember(member: Omit<Member, 'initials' | 'color'>) { const initials = member.name.split(' ').map((part) => part[0]).join('').slice(0, 2).toUpperCase(); const record = { ...member, initials, color: 'sky' }; await set(databaseRef(database, `Members/${member.id}`), record); if (editingId.value && editingId.value !== member.id) await remove(databaseRef(database, `Members/${editingId.value}`)); closeMemberModal(); }
+async function deleteMember(member: Member) { if (window.confirm(`Delete ${member.name} from the member list?`)) await remove(databaseRef(database, `Members/${member.id}`)); }
 function exportList() { const csv = ['Member ID,Name,Course,Organization,Year,Position,Email,Phone', ...members.value.map((member) => [member.id, member.name, member.course, member.organization, member.year, member.position, member.email, member.phone].join(','))].join('\n'); const link = document.createElement('a'); link.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv' })); link.download = 'organization-members.csv'; link.click(); URL.revokeObjectURL(link.href); }
 function hideLogo(event: Event) { (event.target as HTMLImageElement).style.display = 'none'; }
 </script>

@@ -1,0 +1,7 @@
+{
+  "name": "Student Organization Member List",
+  "integrations": {
+    "capacitor": {}
+  },
+  "type": "vue-vite"
+}

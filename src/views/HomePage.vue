@@ -1,56 +1,96 @@
 <template>
   <ion-page>
-    <ion-header :translucent="true">
-      <ion-toolbar>
-        <ion-title>Blank</ion-title>
-      </ion-toolbar>
-    </ion-header>
+    <ion-content :fullscreen="true" class="directory-content">
+      <main class="shell">
+        <header class="topbar">
+          <div class="brand-lockup"><div class="brand-mark"><img :src="'/baco-seal.png'" alt="Baco Community College seal" @error="hideLogo" /><span>B</span></div><div><p class="eyebrow">Baco Community College</p><h1>Organization Member List</h1></div></div>
+          <div class="topbar-actions"><ion-button class="add-button" @click="openAddMember"><ion-icon slot="start" :icon="addOutline" /> Add member</ion-button><ion-button fill="clear" class="logout-button" @click="logout"><ion-icon slot="start" :icon="logOutOutline" /> Log out</ion-button></div>
+        </header>
 
-    <ion-content :fullscreen="true">
-      <ion-header collapse="condense">
-        <ion-toolbar>
-          <ion-title size="large">Blank</ion-title>
-        </ion-toolbar>
-      </ion-header>
+        <section class="intro-row"><div><p class="eyebrow accent">Baco Community College · AY 2026-2027</p><h2>Organization Members</h2></div><label class="semester-select"><select v-model="selectedTerm"><option v-for="term in terms" :key="term" :value="term">{{ term }}</option></select><ion-icon :icon="chevronDownOutline" /></label></section>
 
-      <div id="container">
-        <strong>Ready to create an app?</strong>
-        <p>Start with Ionic <a target="_blank" rel="noopener noreferrer" href="https://ionicframework.com/docs/components">UI Components</a></p>
-      </div>
+        <section class="metrics" aria-label="Member statistics">
+          <button class="metric-card featured" :class="{ selected: selectedStat === 'members' }" @click="selectedStat = 'members'; selectedProgram = null"><span class="metric-icon"><ion-icon :icon="peopleOutline" /></span><div><span>Total members</span><strong>{{ members.length }}</strong></div></button>
+          <button class="metric-card" :class="{ selected: selectedStat === 'officers' }" @click="selectedStat = 'officers'; selectedProgram = null"><span class="metric-icon coral"><ion-icon :icon="ribbonOutline" /></span><div><span>Officers</span><strong>{{ officerCount }}</strong></div><span class="metric-note"></span></button>
+          <button class="metric-card" :class="{ selected: selectedStat === 'programs' }" @click="selectedStat = 'programs'; selectedProgram = null; selectedOrganization = null"><span class="metric-icon gold"><ion-icon :icon="schoolOutline" /></span><div><span>Organizations</span><strong>{{ organizationCount }}</strong></div><span class="metric-note"></span></button>
+        </section>
+        <section class="directory-panel">
+          <div class="panel-heading"><div><h3>{{ directoryTitle }} <span>{{ displayedMembers.length }}</span></h3><p>{{ selectedStat === 'programs' && !selectedOrganization ? 'Choose an organization to view its members and programs.' : 'Manage organization and contact details.' }}</p></div><ion-button fill="outline" class="export-button" @click="exportList"><ion-icon slot="start" :icon="downloadOutline" /> Export list</ion-button></div>
+          <div class="filters"><label class="search-field"><ion-icon :icon="searchOutline" /><input v-model="searchQuery" type="search" placeholder="Search members by name, ID, or course" /><button v-if="searchQuery" class="clear-search" type="button" aria-label="Clear search" @click="searchQuery = ''">×</button></label><label class="filter-toggle" title="Filter by organization"><select v-model="organizationFilter" aria-label="Filter by organization"><option value="All organizations">All organizations</option><option v-for="organization in organizations" :key="organization" :value="organization">{{ organization }}</option></select><ion-icon :icon="optionsOutline" /><span v-if="activeFilterCount" class="filter-count">{{ activeFilterCount }}</span></label></div>
+          <div v-if="selectedStat === 'programs'" class="program-list"><button v-for="organization in organizations" :key="organization" class="program-card" :class="{ selected: selectedOrganization === organization }" @click="selectOrganization(organization)"><span>{{ organization }}</span><strong>{{ organizationMemberCount(organization) }}</strong><small>members</small></button></div>
+          <MemberTable v-if="selectedStat !== 'programs' || selectedOrganization" :members="displayedMembers" @edit="openEditMember" @delete="deleteMember" />
+        </section>
+        <footer class="page-footer"><span><ion-icon :icon="lockClosedOutline" /> Only organization admins can edit this list</span><span>© Baco Community College</span></footer>
+      </main>
     </ion-content>
+
+    <MemberFormModal :is-open="isAddModalOpen" :member="editingMember" :positions="positions" :year-levels="yearLevels" :courses="programs" :organizations="organizations" @close="closeMemberModal" @save="saveMember" />
   </ion-page>
 </template>
 
 <script setup lang="ts">
-import { IonContent, IonHeader, IonPage, IonTitle, IonToolbar } from '@ionic/vue';
+import { computed, ref } from 'vue';
+import { useRouter } from 'vue-router';
+import { IonButton, IonContent, IonIcon, IonPage } from '@ionic/vue';
+import MemberFormModal from '../components/MemberFormModal.vue';
+import MemberTable from '../components/MemberTable.vue';
+import type { Member } from '../types/member';
+import { addOutline, chevronDownOutline, downloadOutline, lockClosedOutline, logOutOutline, optionsOutline, peopleOutline, ribbonOutline, schoolOutline, searchOutline } from 'ionicons/icons';
+
+const router = useRouter();
+const positions = ['President', 'Vice President', 'Secretary', 'Treasurer', 'Member'];
+const yearLevels = ['1st year', '2nd year', '3rd year', '4th year', 'Graduate'];
+const organizations = ['Supreme Secondary Learner Government', 'Science Club', 'Red Cross Youth', 'Youth for Environment in Schools'];
+const terms = ['First semester', 'Second semester'];
+const members = ref<Member[]>([
+  { id: '2023-0148', name: 'Maya Dela Cruz', initials: 'MD', course: 'BS Information Technology', organization: 'Supreme Secondary Learner Government', year: '3rd year', position: 'President', email: 'maya.delacruz@university.edu', phone: '+63 917 482 0193', color: 'lavender' },
+  { id: '2024-0291', name: 'Jared Lim', initials: 'JL', course: 'BS Business Administration', organization: 'Science Club', year: '2nd year', position: 'Vice President', email: 'jared.lim@university.edu', phone: '+63 905 118 4820', color: 'peach' },
+  { id: '2022-0067', name: 'Nina Villanueva', initials: 'NV', course: 'BA Communication', organization: 'Red Cross Youth', year: '4th year', position: 'Secretary', email: 'nina.v@university.edu', phone: '+63 917 730 1961', color: 'mint' },
+  { id: '2025-0314', name: 'Paolo Reyes', initials: 'PR', course: 'BS Computer Science', organization: 'Youth for Environment in Schools', year: '1st year', position: 'Treasurer', email: 'paolo.reyes@university.edu', phone: '+63 998 344 6205', color: 'sky' },
+  { id: '2024-0175', name: 'Sofia Tan', initials: 'ST', course: 'BS Psychology', organization: 'Science Club', year: '2nd year', position: 'Member', email: 'sofia.tan@university.edu', phone: '+63 926 501 3378', color: 'yellow' },
+]);
+const searchQuery = ref('');
+const organizationFilter = ref('All organizations');
+const isAddModalOpen = ref(false);
+const editingId = ref<string | null>(null);
+const selectedTerm = ref('First semester');
+const selectedStat = ref<'members' | 'officers' | 'programs' | null>(null);
+const selectedProgram = ref<string | null>(null);
+const selectedOrganization = ref<string | null>(null);
+const editingMember = computed(() => editingId.value ? members.value.find((member) => member.id === editingId.value) ?? null : null);
+const programs = computed(() => [...new Set(members.value.map((member) => member.course))]);
+const filteredMembers = computed(() => members.value.filter((member) => { const query = searchQuery.value.toLowerCase(); const matchesQuery = [member.name, member.id, member.course].some((value) => value.toLowerCase().includes(query)); return matchesQuery && (organizationFilter.value === 'All organizations' || member.organization === organizationFilter.value); }));
+const officerCount = computed(() => members.value.filter((member) => member.position !== 'Member').length);
+const organizationCount = computed(() => new Set(members.value.map((member) => member.organization)).size);
+const activeFilterCount = computed(() => organizationFilter.value === 'All organizations' ? 0 : 1);
+const displayedMembers = computed(() => { const source = selectedStat.value === 'officers' ? members.value.filter((member) => member.position !== 'Member') : members.value; return source.filter((member) => filteredMembers.value.includes(member) && (!selectedOrganization.value || member.organization === selectedOrganization.value)); });
+const directoryTitle = computed(() => selectedStat.value === 'officers' ? 'Officers' : selectedStat.value === 'programs' && selectedOrganization.value ? selectedOrganization.value : 'Total members');
+function openAddMember() { editingId.value = null; isAddModalOpen.value = true; }
+function logout() { localStorage.removeItem('baco-member-list-auth'); router.push('/login'); }
+function openEditMember(member: Member) { editingId.value = member.id; isAddModalOpen.value = true; }
+function closeMemberModal() { editingId.value = null; isAddModalOpen.value = false; }
+function resetFilters() { searchQuery.value = ''; organizationFilter.value = 'All organizations'; }
+function organizationMemberCount(organization: string) { return members.value.filter((member) => member.organization === organization).length; }
+function selectOrganization(organization: string) { selectedOrganization.value = selectedOrganization.value === organization ? null : organization; }
+function clearOrganization() { selectedOrganization.value = null; }
+function saveMember(member: Omit<Member, 'initials' | 'color'>) { const initials = member.name.split(' ').map((part) => part[0]).join('').slice(0, 2).toUpperCase(); if (editingId.value) { const index = members.value.findIndex((item) => item.id === editingId.value); if (index !== -1) members.value[index] = { ...members.value[index], ...member, initials }; } else { members.value.unshift({ ...member, initials, color: 'sky' }); } closeMemberModal(); }
+function deleteMember(member: Member) { if (window.confirm(`Delete ${member.name} from the member list?`)) members.value = members.value.filter((item) => item.id !== member.id); }
+function exportList() { const csv = ['Member ID,Name,Course,Organization,Year,Position,Email,Phone', ...members.value.map((member) => [member.id, member.name, member.course, member.organization, member.year, member.position, member.email, member.phone].join(','))].join('\n'); const link = document.createElement('a'); link.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv' })); link.download = 'organization-members.csv'; link.click(); URL.revokeObjectURL(link.href); }
+function hideLogo(event: Event) { (event.target as HTMLImageElement).style.display = 'none'; }
 </script>
 
 <style scoped>
-#container {
-  text-align: center;
-  
-  position: absolute;
-  left: 0;
-  right: 0;
-  top: 50%;
-  transform: translateY(-50%);
-}
-
-#container strong {
-  font-size: 20px;
-  line-height: 26px;
-}
-
-#container p {
-  font-size: 16px;
-  line-height: 22px;
-  
-  color: #8c8c8c;
-  
-  margin: 0;
-}
-
-#container a {
-  text-decoration: none;
-}
+@import url('https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=DM+Sans:wght@400;500;600;700&family=Manrope:wght@700;800&display=swap');
+:global(body) { --ion-font-family: 'DM Sans', sans-serif; background: #fffaf8; color: #2a2522; }.directory-content { --background: #fffaf8; }.shell { max-width: 1220px; margin: 0 auto; padding: 28px 44px 22px; }.topbar, .brand-lockup, .topbar-actions, .intro-row, .metric-card, .panel-heading, .filters, .page-footer { display: flex; align-items: center; }.topbar { justify-content: space-between; border-bottom: 1px solid #eadfdb; padding-bottom: 24px; }.brand-lockup { gap: 13px; }.brand-mark { position: relative; overflow: hidden; width: 42px; height: 42px; display: grid; place-items: center; background: #b90812; color: #ffd600; border: 3px solid #ffd600; border-radius: 50%; font: 800 20px 'Manrope', sans-serif; }.brand-mark img { position: absolute; width: 100%; height: 100%; object-fit: contain; }.eyebrow { color: #8d817c; font: 500 10px 'DM Mono', monospace; letter-spacing: .12em; text-transform: uppercase; margin: 0 0 4px; }.topbar h1, h2, h3, .metric-card strong { font-family: 'Manrope', sans-serif; }.topbar h1 { font-size: 17px; margin: 0; }.topbar-actions { gap: 24px; }.sync-status { color: #8d817c; font-size: 12px; }.status-dot { display: inline-block; width: 6px; height: 6px; margin-right: 7px; background: #208844; border-radius: 50%; }.add-button { --background: #b90812; --color: white; --border-radius: 7px; text-transform: none; font-weight: 600; height: 42px; margin: 0; }.intro-row { justify-content: space-between; padding: 45px 0 30px; }.intro-row h2 { font-size: 32px; letter-spacing: -.045em; margin: 5px 0 7px; }.lede { color: #7f746f; margin: 0; font-size: 14px; }.accent { color: #b90812; }.semester-select { border-left: 1px solid #eadfdb; padding-left: 25px; min-width: 170px; }.semester-select span { display: block; color: #918681; font-size: 11px; margin-bottom: 7px; }.semester-select strong { font-size: 13px; }.semester-select ion-icon { color: #b90812; vertical-align: middle; margin-left: 18px; }.metrics { display: grid; grid-template-columns: 1.5fr 1fr 1fr; gap: 14px; margin-bottom: 28px; }.metric-card { min-height: 91px; gap: 14px; padding: 18px 20px; background: #fff; border: 1px solid #eadfdb; border-radius: 9px; }.metric-card.featured { background: #fff0ed; border-color: #f2d2cb; }.metric-icon { display: grid; place-items: center; width: 38px; height: 38px; background: #f8d5cf; border-radius: 8px; color: #b90812; font-size: 19px; }.metric-icon.coral { background: #f8d5cf; color: #b90812; }.metric-icon.gold { background: #fff0b3; color: #a77a00; }.metric-card div { flex: 1; }.metric-card div span { display: block; color: #8d817c; font-size: 11px; margin-bottom: 5px; }.metric-card strong { font-size: 25px; line-height: 1; }.metric-note { color: #9f928d; font-size: 11px; white-space: nowrap; }.metric-note small { display: block; margin-top: 3px; font-size: 10px; }.metric-note.positive { color: #208844; }
+.directory-panel { background: #fff; border: 1px solid #e5eae5; border-radius: 9px; overflow: hidden; }.panel-heading { justify-content: space-between; padding: 24px 25px 20px; }.panel-heading h3 { margin: 0 0 5px; font-size: 18px; }.panel-heading h3 span { color: #a1aaa5; font: 500 11px 'DM Mono', monospace; margin-left: 5px; }.panel-heading p { color: #8a9690; margin: 0; font-size: 12px; }.export-button { --color: #356d5b; --border-color: #cbdcd0; --border-radius: 6px; text-transform: none; font-size: 12px; height: 36px; margin: 0; }.filters { gap: 10px; padding: 0 25px 18px; border-bottom: 1px solid #edf0ed; }.search-field { flex: 1; display: flex; align-items: center; gap: 10px; height: 40px; padding: 0 12px; border: 1px solid #dfe5df; border-radius: 6px; color: #91a09a; }.search-field input { border: 0; outline: 0; background: transparent; flex: 1; font: 13px 'DM Sans', sans-serif; color: #1d2a26; }.search-field kbd { color: #aab2ae; font: 10px 'DM Mono', monospace; border: 1px solid #e2e7e3; padding: 3px 5px; border-radius: 3px; }.filter-field { position: relative; width: 170px; height: 40px; border: 1px solid #dfe5df; border-radius: 6px; padding: 4px 11px 0; }.filter-field span { display: block; color: #98a39e; font-size: 9px; }.filter-field select { width: calc(100% - 12px); appearance: none; border: 0; outline: 0; color: #3e5149; background: transparent; font: 12px 'DM Sans', sans-serif; }.filter-field ion-icon { position: absolute; right: 9px; bottom: 8px; color: #d0644c; pointer-events: none; }.filter-button { --color: #668076; text-transform: none; font-size: 12px; height: 40px; margin: 0; }.table-wrap { overflow-x: auto; } table { width: 100%; border-collapse: collapse; min-width: 700px; } th { padding: 13px 25px; color: #a0aaa5; font: 500 10px 'DM Mono', monospace; letter-spacing: .06em; text-align: left; text-transform: uppercase; } td { padding: 16px 25px; border-top: 1px solid #edf0ed; font-size: 12px; vertical-align: middle; }.member-cell, .course-cell { display: flex; align-items: center; gap: 11px; }.member-cell strong, .course-cell strong { display: block; font-weight: 600; font-size: 13px; color: #263b34; }.member-cell span:not(.avatar), .course-cell span, .phone { display: block; color: #9aa49f; font-size: 11px; margin-top: 4px; }.avatar { display: grid; place-items: center; width: 33px; height: 33px; border-radius: 50%; font-size: 10px; font-weight: 700; }.lavender { background: #e6e4f4; color: #6864a2; }.peach { background: #f7e3d6; color: #a9684f; }.mint { background: #dceee6; color: #438067; }.sky { background: #dcecf2; color: #4b7c8d; }.yellow { background: #f6edc9; color: #997622; }.position-pill { display: inline-block; padding: 5px 9px; background: #f1f4f1; color: #60746b; border-radius: 4px; font-size: 11px; }.position-pill.leader { background: #f9e6df; color: #bd5d48; }.contact-link { display: block; color: #52766a; font-size: 12px; text-decoration: none; }.row-actions { display: flex; align-items: center; gap: 4px; }.action-button { display: grid; place-items: center; width: 30px; height: 30px; border: 0; border-radius: 5px; background: transparent; cursor: pointer; font-size: 16px; }.edit-action { color: #52766a; }.delete-action { color: #c86a56; }.action-button:hover { background: #f1f4f1; }.delete-action:hover { background: #f9e6df; }.empty-state { text-align: center; color: #89958f; padding: 42px; }.page-footer { justify-content: space-between; color: #a2aaa6; font-size: 10px; padding-top: 20px; }.page-footer ion-icon { vertical-align: middle; margin-right: 5px; }
+.modal-content { --background: #f6f7f2; }.member-form { display: grid; gap: 15px; padding: 24px; max-width: 560px; margin: auto; }.form-intro { color: #78847f; font-size: 13px; margin: 0 0 3px; }.form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }.save-button { --background: #1e5548; --border-radius: 6px; text-transform: none; margin-top: 6px; height: 44px; }
+@media (max-width: 720px) { .shell { padding: 20px 17px; }.topbar { align-items: flex-start; }.topbar-actions { gap: 0; }.sync-status { display: none; }.add-button { font-size: 0; width: 42px; --padding-start: 0; --padding-end: 0; }.add-button ion-icon { margin: 0; font-size: 20px; }.intro-row { align-items: flex-start; padding: 32px 0 24px; }.intro-row h2 { font-size: 27px; }.semester-select { display: none; }.metrics { grid-template-columns: 1fr; gap: 8px; }.metric-card { min-height: 73px; }.metric-card strong { font-size: 22px; }.panel-heading { align-items: flex-start; gap: 15px; padding: 20px 17px 17px; }.export-button { font-size: 0; --padding-start: 9px; --padding-end: 9px; }.export-button ion-icon { margin: 0; font-size: 18px; }.filters { flex-wrap: wrap; padding: 0 17px 15px; }.search-field { flex-basis: 100%; }.filter-field { flex: 1; width: auto; }.filter-button { padding: 0; }.page-footer { align-items: flex-start; gap: 12px; flex-direction: column; }.form-grid { grid-template-columns: 1fr; } }
+ .metric-card { border: 1px solid #eadfdb; cursor: pointer; text-align: left; font: inherit; color: inherit; }.metric-card.selected { border-color: #b90812; box-shadow: 0 0 0 2px rgba(185, 8, 18, .12); }.logout-button { --color: #b90812; text-transform: none; font-size: 12px; margin: 0; }.semester-select { position: relative; cursor: pointer; }.semester-select select { appearance: none; border: 0; outline: 0; background: transparent; color: #2a2522; font: 600 13px 'DM Sans', sans-serif; padding-right: 25px; }.semester-select ion-icon { position: absolute; right: 0; bottom: 2px; pointer-events: none; }.stat-details { display: flex; justify-content: space-between; gap: 25px; align-items: flex-start; padding: 20px 25px; margin-bottom: 28px; background: #fff4ef; border: 1px solid #f0d8d0; border-radius: 9px; }.stat-details h3 { margin: 5px 0 0; font-size: 18px; }.detail-items { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; max-width: 70%; }.detail-item { padding: 8px 10px; background: #fff; border: 1px solid #eadfdb; border-radius: 5px; color: #675953; font-size: 11px; }
+@media (max-width: 720px) { .semester-select { display: flex; } }
+.search-field-select { flex: 0 0 145px; }
+@media (max-width: 720px) { .filter-menu { right: 17px; width: min(275px, calc(100vw - 34px)); } }
+.directory-panel { overflow: visible; }.filters { position: relative; }.clear-search { border: 0; background: transparent; color: #a08f88; font-size: 20px; line-height: 1; cursor: pointer; padding: 0 2px; }.filter-toggle { position: relative; z-index: 25; display: grid; place-items: center; flex: 0 0 42px; width: 42px; height: 40px; border: 1px solid #cbdcd0; border-radius: 6px; background: #fff; color: #52766a; cursor: pointer; }.filter-toggle:hover { border-color: #b90812; color: #b90812; }.filter-toggle select { position: absolute; inset: 0; z-index: 2; width: 100%; height: 100%; opacity: 0; cursor: pointer; }.filter-toggle ion-icon { font-size: 19px; pointer-events: none; }.filter-count { position: absolute; z-index: 3; top: 2px; right: 2px; display: grid; place-items: center; width: 15px; height: 15px; border-radius: 50%; background: #b90812; color: #fff; font: 700 9px 'DM Sans', sans-serif; pointer-events: none; }
+.program-list { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 10px; padding: 0 25px 20px; }.program-card { display: grid; grid-template-columns: 1fr auto; gap: 2px 8px; padding: 14px; border: 1px solid #eadfdb; border-radius: 7px; background: #fffaf8; color: #2a2522; text-align: left; cursor: pointer; }.program-card span { font-weight: 600; font-size: 12px; }.program-card strong { color: #b90812; font: 800 20px 'Manrope', sans-serif; grid-row: span 2; }.program-card small { color: #918681; font-size: 10px; }.program-card.selected { border-color: #b90812; box-shadow: 0 0 0 2px rgba(185, 8, 18, .12); }
+.organizations-section { margin: 28px 0; }.section-heading, .breakdown-heading { display: flex; align-items: center; justify-content: space-between; margin-bottom: 13px; }.section-heading h3, .breakdown-heading h3 { margin: 4px 0 0; font-size: 18px; }.section-count { color: #918681; font-size: 12px; }.organization-list { display: grid; grid-template-columns: repeat(auto-fit, minmax(245px, 1fr)); gap: 12px; }.organization-card { display: flex; align-items: center; gap: 12px; padding: 15px; border: 1px solid #eadfdb; border-radius: 8px; background: #fff; color: #2a2522; text-align: left; cursor: pointer; }.organization-card:hover, .organization-card.selected { border-color: #b90812; box-shadow: 0 0 0 2px rgba(185, 8, 18, .1); }.organization-card-icon { display: grid; place-items: center; width: 34px; height: 34px; border-radius: 7px; background: #fff0ed; color: #b90812; font-size: 18px; }.organization-card div { flex: 1; }.organization-card strong, .organization-card small { display: block; }.organization-card strong { font-size: 12px; line-height: 1.35; }.organization-card small { color: #918681; font-size: 11px; margin-top: 4px; }.organization-arrow { color: #b90812; transform: rotate(-90deg); }.organization-breakdown { margin-top: 14px; padding: 18px 20px; border: 1px solid #f0d8d0; border-radius: 8px; background: #fff4ef; }.clear-organization { border: 0; background: transparent; color: #b90812; cursor: pointer; font: 600 12px 'DM Sans', sans-serif; }.program-count-list { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 8px; }.program-count-item { display: flex; justify-content: space-between; gap: 12px; padding: 11px 12px; border: 1px solid #eadfdb; border-radius: 6px; background: #fff; color: #675953; font-size: 12px; }.program-count-item strong { color: #b90812; }.program-count-item small { color: #918681; font-size: 10px; font-weight: 400; }
+@media (max-width: 720px) { .brand-lockup { min-width: 0; flex: 1; gap: 8px; }.brand-lockup > div:last-child { min-width: 0; }.topbar h1 { max-width: 145px; font-size: 14px; line-height: 1.15; }.brand-mark { flex: 0 0 36px; width: 36px; height: 36px; }.topbar-actions { flex-shrink: 0; gap: 2px; }.logout-button { width: 38px; height: 42px; padding: 0; font-size: 0; --padding-start: 0; --padding-end: 0; }.logout-button ion-icon { margin: 0; font-size: 19px; }.add-button { flex: 0 0 42px; } }
 </style>

@@ -1,0 +1,21 @@
+<template>
+  <!-- Organization is separate from the student's course. -->
+  <ion-modal :is-open="isOpen" @didDismiss="$emit('close')"><ion-header><ion-toolbar><ion-title>{{ member ? 'Edit member' : 'Add member' }}</ion-title><ion-buttons slot="end"><ion-button @click="$emit('close')">Close</ion-button></ion-buttons></ion-toolbar></ion-header><ion-content class="modal-content"><form class="member-form" @submit.prevent="submitForm"><p class="form-intro">{{ member ? "Update this student's organization details." : 'Add a student to the organization roster.' }}</p><ion-input v-model="form.name" label="Full name" label-placement="stacked" fill="outline" required placeholder="e.g. Alex Santos" /><div class="form-grid"><ion-input v-model="form.id" label="Member ID" label-placement="stacked" fill="outline" required placeholder="e.g. 2025-0001" /><ion-select v-model="form.course" label="Course" label-placement="stacked" fill="outline" interface="popover"><ion-select-option v-for="course in courses" :key="course" :value="course">{{ course }}</ion-select-option></ion-select></div><ion-select v-model="form.organization" label="Organization" label-placement="stacked" fill="outline" interface="popover"><ion-select-option v-for="organization in organizations" :key="organization" :value="organization">{{ organization }}</ion-select-option></ion-select><div class="form-grid"><ion-select v-model="form.year" label="Year level" label-placement="stacked" fill="outline" interface="popover"><ion-select-option v-for="year in yearLevels" :key="year" :value="year">{{ year }}</ion-select-option></ion-select><ion-select v-model="form.position" label="Position" label-placement="stacked" fill="outline" interface="popover"><ion-select-option v-for="position in positions" :key="position" :value="position">{{ position }}</ion-select-option></ion-select></div><ion-input v-model="form.email" type="email" label="Email address" label-placement="stacked" fill="outline" required placeholder="student@university.edu" /><ion-input v-model="form.phone" type="tel" label="Contact number" label-placement="stacked" fill="outline" required placeholder="09XX XXX XXXX" /><ion-button type="submit" expand="block" class="save-button">{{ member ? 'Update member' : 'Save member' }}</ion-button></form></ion-content></ion-modal>
+</template>
+
+<script setup lang="ts">
+import { ref, watch } from 'vue';
+import { IonButton, IonButtons, IonContent, IonHeader, IonInput, IonModal, IonSelect, IonSelectOption, IonTitle, IonToolbar } from '@ionic/vue';
+import type { Member } from '../types/member';
+
+type MemberForm = Omit<Member, 'initials' | 'color'>;
+const props = defineProps<{ isOpen: boolean; member?: Member | null; positions: string[]; yearLevels: string[]; courses: string[]; organizations: string[] }>();
+const emit = defineEmits<{ close: []; save: [member: MemberForm] }>();
+const form = ref<MemberForm>({ id: '', name: '', course: props.courses[0] ?? '', organization: props.organizations[0] ?? '', year: props.yearLevels[0] ?? '1st year', position: props.positions[0] ?? 'Member', email: '', phone: '' });
+watch(() => [props.isOpen, props.member], () => { if (props.member) form.value = { id: props.member.id, name: props.member.name, course: props.member.course, organization: props.member.organization, year: props.member.year, position: props.member.position, email: props.member.email, phone: props.member.phone }; else if (props.isOpen) form.value = { id: '', name: '', course: props.courses[0] ?? '', organization: props.organizations[0] ?? '', year: props.yearLevels[0] ?? '1st year', position: props.positions[0] ?? 'Member', email: '', phone: '' }; }, { deep: true });
+function submitForm() { emit('save', { ...form.value, name: form.value.name.trim() }); }
+</script>
+
+<style scoped>
+.modal-content { --background: #f6f7f2; }.member-form { display: grid; gap: 15px; padding: 24px; max-width: 560px; margin: auto; }.form-intro { color: #78847f; font-size: 13px; margin: 0 0 3px; }.form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }.save-button { --background: #1e5548; --border-radius: 6px; text-transform: none; margin-top: 6px; height: 44px; }@media (max-width: 720px) { .form-grid { grid-template-columns: 1fr; } }
+</style>

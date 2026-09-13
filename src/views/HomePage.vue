@@ -43,6 +43,7 @@ const router = useRouter();
 const positions = ['President', 'Vice President', 'Secretary', 'Treasurer', 'Member'];
 const yearLevels = ['1st year', '2nd year', '3rd year', '4th year', 'Graduate'];
 const organizations = ['Supreme Secondary Learner Government', 'Science Club', 'Red Cross Youth', 'Youth for Environment in Schools'];
+const defaultCourses = ['BS Information Technology', 'BS Business Administration', 'BA Communication', 'BS Computer Science', 'BS Psychology'];
 const terms = ['First semester', 'Second semester'];
 const members = ref<Member[]>([]);
 const searchQuery = ref('');
@@ -54,7 +55,7 @@ const selectedStat = ref<'members' | 'officers' | 'programs' | null>(null);
 const selectedProgram = ref<string | null>(null);
 const selectedOrganization = ref<string | null>(null);
 const editingMember = computed(() => editingId.value ? members.value.find((member) => member.id === editingId.value) ?? null : null);
-const programs = computed(() => [...new Set(members.value.map((member) => member.course))]);
+const programs = computed(() => [...new Set([...defaultCourses, ...members.value.map((member) => member.course)])]);
 const filteredMembers = computed(() => members.value.filter((member) => { const query = searchQuery.value.toLowerCase(); const matchesQuery = [member.name, member.id, member.course].some((value) => value.toLowerCase().includes(query)); return matchesQuery && (organizationFilter.value === 'All organizations' || member.organization === organizationFilter.value); }));
 const officerCount = computed(() => members.value.filter((member) => member.position !== 'Member').length);
 const organizationCount = computed(() => new Set(members.value.map((member) => member.organization)).size);
@@ -62,7 +63,7 @@ const activeFilterCount = computed(() => organizationFilter.value === 'All organ
 const displayedMembers = computed(() => { const source = selectedStat.value === 'officers' ? members.value.filter((member) => member.position !== 'Member') : members.value; return source.filter((member) => filteredMembers.value.includes(member) && (!selectedOrganization.value || member.organization === selectedOrganization.value)); });
 const directoryTitle = computed(() => selectedStat.value === 'officers' ? 'Officers' : selectedStat.value === 'programs' && selectedOrganization.value ? selectedOrganization.value : 'Total members');
 const membersReference = databaseRef(database, 'Members');
-onMounted(() => { onValue(membersReference, (snapshot) => { const records = snapshot.val() as Record<string, Omit<Member, 'initials' | 'color'> & Partial<Pick<Member, 'initials' | 'color'>>> | null; members.value = records ? Object.entries(records).map(([key, record]) => ({ ...record, id: record.id || key, initials: record.initials || record.name.split(' ').map((part) => part[0]).join('').slice(0, 2).toUpperCase(), color: record.color || 'sky' })) : []; }); });
+onMounted(() => { onValue(membersReference, (snapshot) => { const records = snapshot.val() as Record<string, Partial<Member>> | null; members.value = records ? Object.entries(records).flatMap(([key, record]) => { if (!record || typeof record !== 'object' || typeof record.name !== 'string' || !record.name.trim()) return []; const name = record.name.trim(); return [{ ...record, id: typeof record.id === 'string' && record.id ? record.id : key, name, course: typeof record.course === 'string' ? record.course : '', organization: typeof record.organization === 'string' ? record.organization : '', year: typeof record.year === 'string' ? record.year : '', position: typeof record.position === 'string' ? record.position : 'Member', email: typeof record.email === 'string' ? record.email : '', phone: typeof record.phone === 'string' ? record.phone : '', initials: typeof record.initials === 'string' && record.initials ? record.initials : name.split(' ').map((part) => part[0]).join('').slice(0, 2).toUpperCase(), color: typeof record.color === 'string' ? record.color : 'sky' }]; }) : []; }, (error) => { console.error('Firebase members read failed:', error); }); });
 function openAddMember() { editingId.value = null; isAddModalOpen.value = true; }
 function logout() { localStorage.removeItem('baco-member-list-auth'); router.push('/login'); }
 function openEditMember(member: Member) { editingId.value = member.id; isAddModalOpen.value = true; }
@@ -71,7 +72,7 @@ function resetFilters() { searchQuery.value = ''; organizationFilter.value = 'Al
 function organizationMemberCount(organization: string) { return members.value.filter((member) => member.organization === organization).length; }
 function selectOrganization(organization: string) { selectedOrganization.value = selectedOrganization.value === organization ? null : organization; }
 function clearOrganization() { selectedOrganization.value = null; }
-async function saveMember(member: Omit<Member, 'initials' | 'color'>) { const initials = member.name.split(' ').map((part) => part[0]).join('').slice(0, 2).toUpperCase(); const record = { ...member, initials, color: 'sky' }; await set(databaseRef(database, `Members/${member.id}`), record); if (editingId.value && editingId.value !== member.id) await remove(databaseRef(database, `Members/${editingId.value}`)); closeMemberModal(); }
+async function saveMember(member: Omit<Member, 'initials' | 'color'>) { try { const storedMember = { id: member.id, name: member.name, course: member.course, organization: member.organization, year: member.year, position: member.position, email: member.email, phone: member.phone }; await set(databaseRef(database, `Members/${member.id}`), storedMember); if (editingId.value && editingId.value !== member.id) await remove(databaseRef(database, `Members/${editingId.value}`)); closeMemberModal(); } catch (error) { console.error('Firebase member save failed:', error); window.alert('Hindi na-save ang member. Pakicheck ang Realtime Database rules at siguraduhing naka-enable ang write permission.'); } }
 async function deleteMember(member: Member) { if (window.confirm(`Delete ${member.name} from the member list?`)) await remove(databaseRef(database, `Members/${member.id}`)); }
 function exportList() { const csv = ['Member ID,Name,Course,Organization,Year,Position,Email,Phone', ...members.value.map((member) => [member.id, member.name, member.course, member.organization, member.year, member.position, member.email, member.phone].join(','))].join('\n'); const link = document.createElement('a'); link.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv' })); link.download = 'organization-members.csv'; link.click(); URL.revokeObjectURL(link.href); }
 function hideLogo(event: Event) { (event.target as HTMLImageElement).style.display = 'none'; }

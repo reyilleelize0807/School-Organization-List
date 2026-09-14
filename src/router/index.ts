@@ -17,6 +17,11 @@ const routes: Array<RouteRecordRaw> = [
     path: '/home',
     name: 'Home',
     component: HomePage
+  },
+  {
+    path: '/members',
+    name: 'Members',
+    component: HomePage
   }
 ]
 
@@ -27,7 +32,7 @@ const router = createRouter({
 
 router.beforeEach((to) => {
   const isAuthenticated = localStorage.getItem('baco-member-list-auth') === 'true';
-  if (to.path === '/home' && !isAuthenticated) return '/login';
+  if ((to.path === '/home' || to.path === '/members') && !isAuthenticated) return '/login';
   if (to.path === '/login' && isAuthenticated) return '/home';
   return true;
 })
